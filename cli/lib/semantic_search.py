@@ -5,12 +5,13 @@ from lib.search_utils import load_movies
 
 class SemanticSearch:
   def __init__(self):
-    self.model = SentenceTransformer("all-MiniLM-L6-v2")
-    self.embeddings = None
-    self.documents = None
-    self.document_map = {}
+    self.model = SentenceTransformer("all-MiniLM-L6-v2") # embedding dim: 384
+    self.embeddings = None # hold numeric value
+    self.documents = None # hold document input list
+    self.document_map = {} # map document id to original doc for quick lookup
     self.embeddings_path = Path("cache/movie_embeddings.npy")
 
+# convert each movie (title + description) into a numeric vector (an embedding) using Sentence Transformer
   def build_embeddings(self, documents):
     self.documents = documents
     self.document_map = {}
@@ -18,9 +19,12 @@ class SemanticSearch:
     for doc in self.documents:
       self.document_map[doc['id']] = doc
       movie_strings.append(f"{doc['title']}: {doc['description']}")
-    embeddings = self.model.encode(movie_strings,convert_to_numpy=True) #calls the embedding model to convert each string to a numeric vector.
-    np.save(self.embeddings_path, self.embeddings)
+    self.embeddings = self.model.encode(movie_strings,show_progress_bar=True) #calls the embedding model to convert each string to a numeric vector.
+    self.embeddings_path.parent.mkdir(parents=True, exist_ok=True) # to ensure that the path exist or it will crash
+    np.save(self.embeddings_path,self.embeddings)
+    self.embeddings = self.embeddings
     return self.embeddings
+
 
 # # embeddings --> (N,D)
 # N = number of strings / documents (e.g., 3 in our mini example)
@@ -45,13 +49,14 @@ class SemanticSearch:
 #   "Mortal Kombat vs. DC: After Shao Kahn's..."
 #   # ...
 # ]
-  def load_or_create_embeddings(self, documents):
+  def load_or_create_embeddings(self, documents): # this helps to make sure that embeddings are created only ones 
+    # if the doc == embedding length , then embeddings are already there and we return it , else we ask build_embeddings
     self.documents = documents
     self.document_map = {}
     for doc in self.documents:
       self.document_map[doc['id']] = doc
     if self.embeddings_path.exists():
-      self.embeddings = np.load(self.embeddings_path)
+      self.embeddings = np.load(self.embeddings_path, allow_pickle=False)
       if len(self.documents) == len(self.embeddings):
         return self.embeddings
     return self.build_embeddings(documents)
@@ -60,11 +65,15 @@ class SemanticSearch:
     if not text or not text.strip():
       raise ValueError("Must have text to create an embedding")
     return self.model.encode([text])[0]
-
+    # wrapping text in list [text] as encode() expects list of inputs, not a single string
+    # output (1, D) --> 1= number of inputs and D= embedding dimension (1 sentence, 384 features)
+    # t0 get first element we do [0]
 def verify_embeddings():
   ss = SemanticSearch()
   documents = load_movies()
-  ss.load_or_create_embeddings(documents)
+  embeddings = ss.load_or_create_embeddings(documents)
+  print(f"Number of docs:   {len(documents)}")
+  print(f"{embeddings.shape[0]} vectors in {embeddings.shape[1]} dimensions")
 
 def embed_text(text):
   ss = SemanticSearch()
@@ -76,9 +85,11 @@ def embed_text(text):
   
 def verify_model():
   ss = SemanticSearch()
-  model_class = ss.model.__class__.__name__            # e.g., "SentenceTransformer"
-  model_repr = repr(ss.model)
-  max_len = ss.model.max_seq_length
+  # model_class = ss.load_or_create_embeddings(documents)# e.g., "SentenceTransformer"
+  # model_repr = repr(ss.model)
+  # max_len = ss.model.max_seq_length
 
-  print(f"Model loaded:{model_repr}")
-  print(f"Max sequence length: {max_len}")
+  # print(f"Model loaded:{model_repr}")
+  # print(f"Max sequence length: {max_len}")
+  print(f"Model loaded: {ss.model}")
+  print(f"Max sequence length: {ss.model.max_seq_length}")
