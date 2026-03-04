@@ -68,6 +68,39 @@ class SemanticSearch:
     # wrapping text in list [text] as encode() expects list of inputs, not a single string
     # output (1, D) --> 1= number of inputs and D= embedding dimension (1 sentence, 384 features)
     # t0 get first element we do [0]
+
+  def search(self, query, limit):
+    if self.embeddings is None: 
+      raise ValueError("No embeddings loaded. Call `load_or_create_embeddings` first.")
+    query_emb = self.generate_embedding(query)
+    similarities = []
+    for doc_emb , doc in zip(self.embeddings, self.documents):
+      _similarity = cosine_similarity(query_emb, doc_emb)
+      similarities.append((_similarity, doc))
+    similarities.sort(key = lambda x: x[0], reverse= False)
+    res = []
+    for sc, doc in similarities[:limit]:
+      res.append({'score':sc, 
+                  'title':doc['title'],
+                  'description':doc['description']}) 
+    return res
+
+def search(query, limit = 5):
+  ss = SemanticSearch()
+  movies = load_movies()
+  ss.load_or_create_embeddings(movies)
+  search_result = ss.search(query, limit)
+  for idx, res in enumerate(search_result):
+    print(f'{idx}.{res['title']} (score: {res['score']})')
+    print(res['description'[:100]])
+
+def embed_query_text(query): 
+  ss = SemanticSearch()
+  embedding = ss.generate_embedding(query)
+  print(f"Query: {query}")
+  print(f"First 5 dimensions: {embedding[:5]}")
+  print(f"Shape: {embedding.shape}")
+
 def verify_embeddings():
   ss = SemanticSearch()
   documents = load_movies()
@@ -93,3 +126,13 @@ def verify_model():
   # print(f"Max sequence length: {max_len}")
   print(f"Model loaded: {ss.model}")
   print(f"Max sequence length: {ss.model.max_seq_length}")
+
+def cosine_similarity(vec1, vec2):
+    dot_product = np.dot(vec1, vec2)
+    norm1 = np.linalg.norm(vec1)
+    norm2 = np.linalg.norm(vec2)
+
+    if norm1 == 0 or norm2 == 0:
+        return 0.0
+
+    return dot_product / (norm1 * norm2)
