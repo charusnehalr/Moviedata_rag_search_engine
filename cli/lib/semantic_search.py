@@ -2,6 +2,7 @@ from sentence_transformers import SentenceTransformer
 import numpy as np
 from pathlib import Path
 from lib.search_utils import load_movies
+import re
 
 class SemanticSearch:
   def __init__(self):
@@ -73,17 +74,67 @@ class SemanticSearch:
     if self.embeddings is None: 
       raise ValueError("No embeddings loaded. Call `load_or_create_embeddings` first.")
     query_emb = self.generate_embedding(query)
-    similarities = []
+    similarities = [] #empty list to store similarity_score and document
     for doc_emb , doc in zip(self.embeddings, self.documents):
+      # here we assume self.embeddings and self.doc are of equal length. If not zip hides 
+      #extra item silently - this could miss docs
       _similarity = cosine_similarity(query_emb, doc_emb)
+      # assume cosine similarity returns score where larger is more similar. If it 
+      # returns distance (smaller is better) then sorting ascending is better
       similarities.append((_similarity, doc))
-    similarities.sort(key = lambda x: x[0], reverse= False)
+        # If cosine similarity: higher = more similar -> use nlargest
+    # top_pairs = heapq.nlargest(limit, pairs, key=lambda x: x[0])
+    # above code validates limit. heapq so that don't have to sort entire list when we only need small 
+    # top-k O(n log k) instead of O(n log n)
+    # .get() to avoid keyError if the doc is missing in field
+    similarities.sort(key = lambda x: x[0], reverse= True) # value in descending order 
     res = []
     for sc, doc in similarities[:limit]:
       res.append({'score':sc, 
                   'title':doc['title'],
                   'description':doc['description']}) 
     return res
+def semantic_chunking(text, max_chunk_size = 4, overlap = 0):
+  sentence = re.split(r"(?<=[.!?])\s+", text)
+  # split to sentences
+  chunks = []
+  step_size = max_chunk_size - overlap
+  for i in range(0, len(sentence),step_size):
+    # each sentences split into chunks 
+    # loop such that it jumps step size (containing overlap)
+    chunk_sentences = sentence[i:i+max_chunk_size]
+    if len(chunk_sentences) <= overlap:
+      break
+    chunks.append(" ".join(chunk_sentences))
+  return chunks
+
+def chunk_text_semantic(text, chunk_size = 4, overlap = 0):
+  chunks = semantic_chunking(text, chunk_size, overlap)
+  print(f"Semantically chunking {len(text)} characters.")
+  for i, chunk in enumerate(chunks):
+    print(f"{i+1}. {chunk}")
+
+def fixed_size_chunking(text, chunk_size=200, overlap=1):
+  words = text.split() # split at whitespaces
+  chunks = []
+  # word[0:200]
+  # word[200:400]
+  step_size = chunk_size - overlap # how many new words each chunk advances
+  for i in range(0, len(words), step_size):
+    chunk_words = words[i:i+chunk_size]
+    if len(chunk_words)<= overlap:
+      break
+    chunks.append(" ".join(chunk_words))
+  # chunks.append(" ".join(words[i : i+chunk_size]))
+  return chunks
+# overlap chunk
+# words[0:200]
+# words[190:300] 
+def chunk_text(text, chunk_size=200, overlap=1):
+  chunks = fixed_size_chunking(text, chunk_size, overlap)
+  print(f"Chunking {len(text)} characters")
+  for i, chunk in enumerate(chunks):
+    print(f" {i+1}. {chunk}")
 
 def search(query, limit = 5):
   ss = SemanticSearch()
