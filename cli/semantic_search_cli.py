@@ -8,7 +8,8 @@ from lib.semantic_search import (
   embed_query_text,
   search, 
   chunk_text,
-  chunk_text_semantic
+  chunk_text_semantic, 
+  embed_chunks
 )
 def main():
     parser = argparse.ArgumentParser(description="Semantic Search CLI")
@@ -38,8 +39,12 @@ def main():
     semantic_chunk_subparser.add_argument("--chunk-size", type=int,default=4, help="Optional chunk size")
     semantic_chunk_subparser.add_argument("--overlap", type=int, default=0, help="Optional overlap size")
 
+    semantic_embed_chunk_subparser = subparsers.add_parser("embed_chunks", help="Create embeddings for semantic chunks")
+
     args = parser.parse_args()
     match args.command:
+        case "embed_chunks":
+          embed_chunks()
         case "verify":
           verify_model()
         case "embed_text":

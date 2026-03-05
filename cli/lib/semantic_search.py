@@ -3,6 +3,7 @@ import numpy as np
 from pathlib import Path
 from lib.search_utils import load_movies
 import re
+import json
 
 class SemanticSearch:
   def __init__(self):
@@ -187,3 +188,51 @@ def cosine_similarity(vec1, vec2):
         return 0.0
 
     return dot_product / (norm1 * norm2)
+
+class ChunkedSemanticSearch(SemanticSearch):
+    def __init__(self) -> None:
+        super().__init__()
+        self.chunk_embeddings = None
+        self.chunk_embeddings_path = Path("cache/chunk_embeddings.npy")
+        self.chunk_metadata = None
+        self.chunk_metadata_path = Path("cache/chunk_metadata.json")
+
+    def build_chunk_embeddings(self, documents): 
+      self.documents = documents
+      self.document_map = {doc['id']: doc for doc in documents}
+      all_chunks = []
+      chunk_metadata = []
+      
+      for midx, doc in enumerate(documents):
+        if doc['description'].strip == '':
+          continue
+        _chunks = semantic_chunking(doc['description'], max_chunk_size = 4, overlap = 1)
+        all_chunks += _chunks
+        for cidx in range(len(_chunks)):
+          chunk_metadata.append({"movie_idx": midx,
+                                  "chunk_idx": cidx,
+                                  "total_chunks": len(_chunks) })
+        
+      self.chunk_embeddings = self.model.encode(all_chunks)
+      self.chunk_metadata = chunk_metadata
+      np.save(self.chunk_embeddings_path, self.chunk_embeddings)
+      with open(self.chunk_metadata_path, 'w') as f:
+        json.dump({"chunks": chunk_metadata, "total_chunks": len(all_chunks)}, f, indent=2)
+      return self.chunk_embeddings
+
+    def load_or_create_chunk_embeddings(self,documents):
+      self.documents = documents
+      self.document_map = {doc['id']: doc for doc in documents}
+
+      if self.chunk_embeddings_path.exists() and self.chunk_metadata_path.exists():
+        self.chunk_embeddings = np.load(self.embeddings_path)
+        with open(self.chunk_metadata_path, 'r') as f:
+          self.chunk_metadata = json.loads(f )
+        return self.chunk_embeddings
+      return self.build_chunk_embeddings(documents)
+  
+def embed_chunks():
+  movies = load_movies()
+  css = ChunkedSemanticSearch()
+  embeddings = css.load_or_create_chunk_embeddings(movies)
+  print(f"Generated {len(embeddings)} chunked embeddings")
