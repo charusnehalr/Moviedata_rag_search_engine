@@ -10,4 +10,4 @@ wheels/
 
 # Virtual environments
 .venv
-"cache/chunk_embeddings.npy"
+cache/chunk_embeddings.npy
