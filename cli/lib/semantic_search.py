@@ -6,6 +6,9 @@ import re
 import json
 from collections import defaultdict
 from math import inf
+import json
+from collections import defaultdict
+from math import inf
 
 class SemanticSearch:
   def __init__(self):
@@ -101,12 +104,18 @@ def semantic_chunking(text, max_chunk_size = 4, overlap = 0):
   text = text.strip()
   if not text:
     return []
+  text = text.strip()
+  if not text:
+    return []
   sentence = re.split(r"(?<=[.!?])\s+", text)
+  if ((len(sentence)==1) and sentences[0].endswith('!','.','?')):
+    pass  
   if ((len(sentence)==1) and sentences[0].endswith('!','.','?')):
     pass  
   # split to sentences
   chunks = []
   step_size = max_chunk_size - overlap
+  sentences = [s.strip() for s in sentences if s]
   sentences = [s.strip() for s in sentences if s]
   for i in range(0, len(sentence),step_size):
     # each sentences split into chunks 
@@ -188,6 +197,16 @@ def verify_model():
   print(f"Max sequence length: {ss.model.max_seq_length}")
 
 def cosine_similarity(vec1, vec2):
+    a = np.asarray(vec1).ravel()   # flatten to 1-D
+    b = np.asarray(vec2).ravel()   # flatten to 1-D
+
+    # ensure same length
+    if a.size != b.size:
+        raise ValueError(f"Vector size mismatch: {a.size} vs {b.size}")
+
+    norm_a = np.linalg.norm(a)
+    norm_b = np.linalg.norm(b)
+    if norm_a == 0.0 or norm_b == 0.0:
     a = np.asarray(vec1).ravel()   # flatten to 1-D
     b = np.asarray(vec2).ravel()   # flatten to 1-D
 
