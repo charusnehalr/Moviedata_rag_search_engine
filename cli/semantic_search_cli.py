@@ -9,7 +9,8 @@ from lib.semantic_search import (
   search, 
   chunk_text,
   chunk_text_semantic, 
-  embed_chunks
+  embed_chunks,
+  search_chunked
 )
 def main():
     parser = argparse.ArgumentParser(description="Semantic Search CLI")
@@ -41,8 +42,14 @@ def main():
 
     semantic_embed_chunk_subparser = subparsers.add_parser("embed_chunks", help="Create embeddings for semantic chunks")
 
+    search_chunk_subparser = subparsers.add_parser("search_chunked", help="Search in sematic embedded chunk")
+    search_chunk_subparser.add_argument("query", type=str, help="Query to search")
+    search_chunk_subparser.add_argument("--limit", type=int, help="Top number of results limit")
+
     args = parser.parse_args()
     match args.command:
+        case "search_chunked":
+          search_chunked(args.query, args.limit)
         case "embed_chunks":
           embed_chunks()
         case "verify":
