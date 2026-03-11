@@ -207,6 +207,7 @@ def cosine_similarity(vec1, vec2):
     norm_a = np.linalg.norm(a)
     norm_b = np.linalg.norm(b)
     if norm_a == 0.0 or norm_b == 0.0:
+      return 0.0
     a = np.asarray(vec1).ravel()   # flatten to 1-D
     b = np.asarray(vec2).ravel()   # flatten to 1-D
 
