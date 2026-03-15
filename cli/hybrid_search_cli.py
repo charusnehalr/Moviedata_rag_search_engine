@@ -18,12 +18,14 @@ def main() -> None:
     rrf_parser.add_argument("query",type=str, help="User Query for the search")
     rrf_parser.add_argument("--k",type=int , default = 60, help="Constant to dynamically control weighting between two scores")
     rrf_parser.add_argument("--limit",type=int, default = 5, help="Limit of the answer")
+    rrf_parser.add_argument("--enhance",type=str, choices=["spell"], help="To enhance query using LLM")
+
 
     args = parser.parse_args()
 
     match args.command:
         case "rrf_search":
-          rrf_search(args.query, args.k, args.limit)
+          rrf_search(args.query, args.k, args.limit, args.enhance)
         case "weighted_search":
           weighted_search(args.query, args.alpha, args.limit)
         case "normalize":

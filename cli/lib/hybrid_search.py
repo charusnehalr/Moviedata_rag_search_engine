@@ -3,6 +3,7 @@ import os
 from .keyword_search import InvertedIndex
 from .semantic_search import ChunkedSemanticSearch
 from lib.search_utils import load_movies
+from lib.llm import generate_content, correct_spelling
 
 def weighted_search(query, alpha=0.5, limit=5):
   movies = load_movies()
@@ -14,14 +15,19 @@ def weighted_search(query, alpha=0.5, limit=5):
     print(f"BM25: {r['bm25_score']}, Semantic: {r['sem_score']}")
     print(r['description'][:100])
 
-def rrf_search(query, k=60, limit=5):
+def rrf_search(query, k=60, limit=5, enhance=None):
   movies = load_movies()
   hs = HybridSearch(movies)
   results = hs.rrf_search(query, k, limit)
-  for idx, r in enumerate(results[:limit], start=1):
+  match enhance:
+    case "spell":
+      new_query = correct_spelling(query)
+      print(f"Enhanced query (spell): '{query}' -> '{new_query}'\n")
+      query = new_query
+  for idx, r in enumerate(results[:limit]):
     print(f"{idx+1} {r['title']}")
     print(f"RRF Score: {r['rrf_score']}")
-    print(f"BM25 Rank: {r['bm25_score']}, Semantic Rank: {r['sem_score']}")
+    print(f"BM25 Rank: {r['bm25_rank']}, Semantic Rank: {r['sem_rank']}")
     print(r['description'][:100])
 
 class HybridSearch:
@@ -62,7 +68,7 @@ def normalize_search_results(results):
   return results
 
 def rrf_score(rank, k):
-  return 1/ (rank + k)
+  return 1/(rank + k)
 
 def rrf_final_score(r1, r2,k):
   if r1 and r2:
