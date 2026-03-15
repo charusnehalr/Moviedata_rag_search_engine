@@ -3,7 +3,7 @@ import os
 from .keyword_search import InvertedIndex
 from .semantic_search import ChunkedSemanticSearch
 from lib.search_utils import load_movies
-from lib.llm import generate_content, correct_spelling
+from lib.llm import augment_prompt
 
 def weighted_search(query, alpha=0.5, limit=5):
   movies = load_movies()
@@ -19,11 +19,11 @@ def rrf_search(query, k=60, limit=5, enhance=None):
   movies = load_movies()
   hs = HybridSearch(movies)
   results = hs.rrf_search(query, k, limit)
-  match enhance:
-    case "spell":
-      new_query = correct_spelling(query)
-      print(f"Enhanced query (spell): '{query}' -> '{new_query}'\n")
-      query = new_query
+  if enhance:
+    new_query = augment_prompt(query, enhance)
+    print(f"Enhanced query ({'enhance'}): '{query}' -> '{new_query}'\n")
+    query = new_query
+
   for idx, r in enumerate(results[:limit]):
     print(f"{idx+1} {r['title']}")
     print(f"RRF Score: {r['rrf_score']}")
@@ -145,9 +145,6 @@ def combine_search_results(bm25_results, sem_result, alpha):
 
   results = sorted(list(combined_norm.values()), key=lambda x: x['hybrid_score'], reverse=True )
   return results
-
-
-
 
 def normalize_scores(scores):
   if not scores: return []

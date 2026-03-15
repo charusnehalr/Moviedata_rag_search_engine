@@ -12,6 +12,7 @@ PROJECT_ROOT = CURRENT_FILE.parents[2]
 DATA_PATH = PROJECT_ROOT/"data"/"movies.json"
 STOPWORDS_PATH = PROJECT_ROOT/"data"/"stopwords.txt"
 CACHE_PATH = PROJECT_ROOT/"cache"
+PROMPT_PATH = PROJECT_ROOT/"cli"/"lib"/"prompts"
 
 # __file__ --> path of this file
 # Path --> converts path into Path object --> .parent etc

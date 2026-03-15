@@ -17,8 +17,18 @@ def generate_content(prompt, query):
   response = client.models.generate_content(model=model,contents=prompt)
   return response.text
 
+def augment_prompt(query,type):
+    with open(PROMPT_PATH/f'{type}.md', 'r') as f:
+      prompt = f.read()
+    return generate_content(prompt, query)
+
 def correct_spelling(query):
-  with open(PROMPT_PATH/'spelling.md', 'r') as f:
-    prompt = f.read()
-  return generate_content(prompt, query)
+  return augment_prompt(query, 'spell')
+
+def rewrite_query(query):
+  return augment_prompt(query, 'rewrrite')
+
+def expand_query(query):
+  return augment_prompt(query, 'expand')
+
 
