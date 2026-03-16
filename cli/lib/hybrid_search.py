@@ -4,7 +4,7 @@ from .keyword_search import InvertedIndex
 from .semantic_search import ChunkedSemanticSearch
 from lib.search_utils import load_movies
 from lib.llm import augment_prompt
-from lib.rerank import individual_rerank
+from lib.rerank import individual_rerank, batch_rerank
 
 def weighted_search(query, alpha=0.5, limit=5):
   movies = load_movies()
@@ -25,11 +25,17 @@ def rrf_search(query, k=60, limit=5, enhance=None, rerank_method = None):
     print(f"Enhanced query ({'enhance'}): '{query}' -> '{new_query}'\n")
     query = new_query
   rrf_limit = limit * 5 if rerank_method else limit
-  results = hs.rrf_search(query, k, limit)
-  if rerank_method:
-    results = individual_rerank(query, results)
-    print(f"Re-ranking top 3 results using individual method...")
-
+  results = hs.rrf_search(query, k, rrf_limit)
+  match rerank_method:
+    case "individual":
+      results = individual_rerank(query, results)
+      print(f"Reranking top {limit} results using individual method...")
+    case "batch":
+      results = batch_rerank(query, results)
+      print(f"Reranking top {limit} results using batch method...")
+    case _:
+      pass
+   
   for idx, r in enumerate(results[:limit]):
     print(f"{idx+1} {r['title']}")
     print(f"RRF Score: {r['rrf_score']}")
