@@ -19,13 +19,14 @@ def main() -> None:
     rrf_parser.add_argument("--k",type=int , default = 60, help="Constant to dynamically control weighting between two scores")
     rrf_parser.add_argument("--limit",type=int, default = 5, help="Limit of the answer")
     rrf_parser.add_argument("--enhance",type=str, choices=["spell", "rewrite", "expand"], help="To enhance query using LLM")
+    rrf_parser.add_argument("--rerank-method",type=str, choices=["individual"], help="Rerank method")
 
 
     args = parser.parse_args()
 
     match args.command:
         case "rrf_search":
-          rrf_search(args.query, args.k, args.limit, args.enhance)
+          rrf_search(args.query, args.k, args.limit, args.enhance, args.rerank_method)
         case "weighted_search":
           weighted_search(args.query, args.alpha, args.limit)
         case "normalize":

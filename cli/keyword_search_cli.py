@@ -63,10 +63,12 @@ def main() -> None:
             idf_command(args.term)
         case "bm25idf":
             bm25_idf_command(args.term)
-        case "tfidf":
+        # TF IDF search 
+        case "tfidf": 
             tfidf_command(args.doc_id, args.term)
         case "bm25tf":
             bm25_tf_command(args.doc_id, args.term, args.k1, args.b1)
+        # BM25 search 
         case "bm25search":
             print("Searching for:", args.query)
             results = bm25search_command(args.query)

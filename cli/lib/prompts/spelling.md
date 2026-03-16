@@ -8,3 +8,4 @@ If there are no spelling errors, or if you're unsure, output the original query 
 Output only the final query text, nothing else.
 
 User query: "{query}"
+ 
