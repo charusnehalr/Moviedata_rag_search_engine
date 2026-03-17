@@ -22,6 +22,7 @@ def main() -> None:
     rrf_parser.add_argument("--limit",type=int, default = 5, help="Limit of the answer")
     rrf_parser.add_argument("--enhance",type=str, choices=["spell", "rewrite", "expand"], help="To enhance query using LLM")
     rrf_parser.add_argument("--rerank_method",type=str, choices=["individual", "batch", "cross_encoder"], help="Rerank method")
+    rrf_parser.add_argument("--evaluate", action='store_true', help="Run LLM as a judge on results")
 
 
     args = parser.parse_args()
@@ -38,7 +39,7 @@ def main() -> None:
 
     match args.command:
         case "rrf_search":
-          rrf_search(args.query, args.k, args.limit, args.enhance, args.rerank_method)
+          rrf_search(args.query, args.k, args.limit, args.enhance, args.rerank_method, args.evaluate)
         case "weighted_search":
           weighted_search(args.query, args.alpha, args.limit)
         case "normalize":

@@ -1,4 +1,4 @@
-import os
+import os, json
 from dotenv import load_dotenv
 from lib.search_utils import PROMPT_PATH
 
@@ -12,9 +12,13 @@ from google import genai
 model = 'gemma-3-27b-it'
 client = genai.Client(api_key=api_key)
 
-def generate_content(prompt, query):
-  prompt = prompt.format(query=query)
+def generate_content(prompt, query, **kwargs):
+  prompt = prompt.replace('{query}', query)
+  for key, value in kwargs.items():
+      prompt = prompt.replace(f'{{{key}}}', str(value))
   response = client.models.generate_content(model=model,contents=prompt)
+  if response.text is None:
+      print(f"[DEBUG] Full response: {response}")
   return response.text
 
 def augment_prompt(query,type):
@@ -30,5 +34,14 @@ def rewrite_query(query):
 
 def expand_query(query):
   return augment_prompt(query, 'expand')
+
+def llm_judge(query, formatted_results):
+    with open(PROMPT_PATH/'llm_evaluation.md', 'r') as f:
+      prompt = f.read()
+    results = generate_content(prompt, query, formatted_results=formatted_results)
+    if not results:
+        raise ValueError(f"LLM returned empty response for query: '{query}'")
+    results = json.loads(results.strip('```json').strip('```').strip())
+    return results 
 
 
