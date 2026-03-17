@@ -59,3 +59,6 @@ def answer_question(query, documents):
 
 def rag_summary(query, documents):
     return _rag(query, documents, 'summarize.md')
+
+def cited_summary(query, documents):
+    return _rag(query, documents, 'cited_summarize.md')
