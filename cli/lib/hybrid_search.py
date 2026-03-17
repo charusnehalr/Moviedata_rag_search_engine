@@ -1,10 +1,13 @@
 import os
+import logging
 
 from .keyword_search import InvertedIndex
 from .semantic_search import ChunkedSemanticSearch
 from lib.search_utils import load_movies
 from lib.llm import augment_prompt
 from lib.rerank import individual_rerank, batch_rerank, cross_encoder_rerank
+
+logger = logging.getLogger(__name__)
 
 def weighted_search(query, alpha=0.5, limit=5):
   movies = load_movies()
@@ -17,15 +20,27 @@ def weighted_search(query, alpha=0.5, limit=5):
     print(r['description'][:100])
 
 def rrf_search(query, k=60, limit=5, enhance=None, rerank_method = None):
+  logger.debug("=" * 60)
+  logger.debug(f"[STAGE 1] Original query: '{query}'")
+
   movies = load_movies()
   hs = HybridSearch(movies)
-  # results = hs.rrf_search(query, k, limit)
+
   if enhance:
     new_query = augment_prompt(query, enhance)
     print(f"Enhanced query ({'enhance'}): '{query}' -> '{new_query}'\n")
+    logger.debug(f"[STAGE 2] Query after enhancement ({enhance}): '{new_query}'")
     query = new_query
+  else:
+    logger.debug(f"[STAGE 2] No query enhancement applied")
+
   rrf_limit = limit * 5 if rerank_method else limit
   results = hs.rrf_search(query, k, rrf_limit)
+
+  logger.debug(f"[STAGE 3] RRF search returned {len(results)} results")
+  for i, r in enumerate(results[:5]):
+    logger.debug(f"  [{i+1}] '{r['title']}' | rrf={r['rrf_score']:.4f} | bm25_rank={r['bm25_rank']} | sem_rank={r['sem_rank']}")
+
   match rerank_method:
     case "individual":
       results = individual_rerank(query, results)
@@ -38,7 +53,21 @@ def rrf_search(query, k=60, limit=5, enhance=None, rerank_method = None):
       print(f"Reranking top {limit} results using cross_encoder method...")
     case _:
       pass
-   
+
+  if rerank_method:
+    logger.debug(f"[STAGE 4] Results after re-ranking ({rerank_method}), showing top {min(limit, len(results))}")
+    for i, r in enumerate(results[:limit]):
+      score_info = f"rrf={r['rrf_score']:.4f}"
+      if rerank_method == "cross_encoder":
+        score_info += f" | cross_encoder={r.get('cross_encoder_score', 'N/A'):.4f}"
+      elif rerank_method in ("individual", "batch"):
+        score_info += f" | rerank_score={r.get('rerank_score') or r.get('rerank_response', 'N/A')}"
+      logger.debug(f"  [{i+1}] '{r['title']}' | {score_info}")
+  else:
+    logger.debug(f"[STAGE 4] No re-ranking applied")
+
+  logger.debug("=" * 60)
+
   for idx, r in enumerate(results[:limit]):
     print(f"{idx+1} {r['title']}")
     print(f"RRF Score: {r['rrf_score']}")
@@ -70,8 +99,13 @@ class HybridSearch:
 
     def rrf_search(self, query, k, limit=10):
         bm25_results = self._bm25_search(query, limit*500)
+        logger.debug(f"  [BM25] Retrieved {len(bm25_results)} results | top: {[r['title'] for r in bm25_results[:3]]}")
+
         sem_results = self.semantic_search.search_chunks(query, limit*500)
+        logger.debug(f"  [Semantic] Retrieved {len(sem_results)} results | top: {[r['title'] for r in sem_results[:3]]}")
+
         combined_results = rrf_combine_search_results(bm25_results, sem_results, k)
+        logger.debug(f"  [RRF Combined] {len(combined_results)} docs fused, returning top {limit}")
         return combined_results[:10]
 
 def hybrid_score(bm25_score, sem_score, alpha=0.5):

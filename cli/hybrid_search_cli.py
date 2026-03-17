@@ -1,8 +1,10 @@
 import argparse
+import logging
 from lib.hybrid_search import normalize_scores, weighted_search, rrf_search
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Hybrid Search CLI")
+    parser.add_argument("--debug", action="store_true", help="Enable debug logging for the search pipeline")
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
 
     norm_parser = subparsers.add_parser(name="normalize", help="Command to normalize given scores")
@@ -23,6 +25,16 @@ def main() -> None:
 
 
     args = parser.parse_args()
+
+    if args.debug:
+        # Only show DEBUG logs from our pipeline, not noisy third-party libraries
+        handler = logging.StreamHandler()
+        handler.setFormatter(logging.Formatter("%(asctime)s [%(levelname)s] %(message)s", datefmt="%H:%M:%S"))
+        pipeline_logger = logging.getLogger("lib.hybrid_search")
+        pipeline_logger.setLevel(logging.DEBUG)
+        pipeline_logger.addHandler(handler)
+        pipeline_logger.propagate = False  # Prevent duplicate output to root logger
+# Example to run debug : uv run cli/hybrid_search_cli.py --debug rrf_search "dinosaur" --limit 5
 
     match args.command:
         case "rrf_search":
