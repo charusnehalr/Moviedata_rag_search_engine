@@ -1,5 +1,5 @@
 import argparse
-from lib.rag import query_answer, doc_summarize, cited_summarize
+from lib.rag import query_answer, doc_summarize, cited_summarize, question_answer_summarize
 
 def main():
     parser = argparse.ArgumentParser(description="Retrieval Augmented Generation CLI")
@@ -16,6 +16,9 @@ def main():
     rag_citation_parser.add_argument("query", type=str, help="Search query for RAG")
     rag_citation_parser.add_argument("--limit", type=int, default=5, help="Limit of output")
     
+    rag_question_parser = subparsers.add_parser("question", help="Perform RAG summary")
+    rag_question_parser.add_argument("question", type=str, help="Search query for RAG")
+    rag_question_parser.add_argument("--limit", type=int, default=5, help="Limit of output")
 
     args = parser.parse_args()
 
@@ -26,6 +29,8 @@ def main():
             doc_summarize(args.query, args.limit)
         case "citation":
             cited_summarize(args.query, args.limit)
+        case "question":
+            question_answer_summarize(args.question, args.limit)
 
         case _:
             parser.print_help()
