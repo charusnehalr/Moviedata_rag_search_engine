@@ -1,0 +1,165 @@
+"""
+engine.py — The search engine singleton.
+
+Creates one HybridSearch instance at server startup, holds it in memory,
+and exposes clean functions the router can call.
+
+Why a singleton?
+  HybridSearch.__init__ loads ~250MB of data (BM25 index + chunk embeddings + model).
+  Doing that once at startup means every request is fast — no disk I/O per query.
+"""
+
+import sys
+from pathlib import Path
+
+# ─────────────────────────────────────────────────────────────
+# sys.path fix — must happen BEFORE any cli/lib imports
+#
+# cli/lib/*.py use "from lib.X import Y" which only works when
+# the "cli/" directory is on Python's module search path.
+#
+# Path(__file__).parents[3] climbs up from engine.py:
+#   [0] services/  [1] app/  [2] backend/  [3] rag-search-engine/
+# Then / "cli" appends the cli folder.
+# ─────────────────────────────────────────────────────────────
+_CLI_PATH = Path(__file__).parents[3] / "cli"
+if str(_CLI_PATH) not in sys.path:
+    sys.path.insert(0, str(_CLI_PATH))
+
+# These imports now resolve because cli/ is on sys.path
+from lib.search_utils import load_movies
+from lib.hybrid_search import HybridSearch
+
+
+# ─────────────────────────────────────────────────────────────
+# Module-level singleton
+# Starts as None. startup() fills it. Every search function below uses it.
+# ─────────────────────────────────────────────────────────────
+_hs: HybridSearch | None = None
+
+
+def startup() -> None:
+    """Load all indexes into memory. Called ONCE when the server boots.
+
+    After this runs, _hs holds a fully loaded HybridSearch instance:
+      _hs.idx              → BM25 InvertedIndex (ready to search)
+      _hs.semantic_search  → ChunkedSemanticSearch (embeddings loaded)
+    """
+    global _hs
+
+    print("[engine] Loading movies...")
+    movies = load_movies()
+
+    print("[engine] Initializing HybridSearch (loads BM25 index + chunk embeddings)...")
+    _hs = HybridSearch(movies)
+
+    print("[engine] Ready.")
+
+
+# ─────────────────────────────────────────────────────────────
+# Search functions
+# Each one delegates to the appropriate method on _hs.
+# The router calls these — it never touches _hs directly.
+# ─────────────────────────────────────────────────────────────
+
+def keyword_search(query: str, limit: int) -> list[dict]:
+    """BM25 keyword search.
+
+    Returns: list of { id, title, document, score, metadata }
+    """
+    return _hs.idx.bm25_search(query, limit)
+
+
+def semantic_search(query: str, limit: int) -> list[dict]:
+    """Chunked semantic search using sentence embeddings.
+
+    Returns: list of { id, title, document, score, metadata }
+    """
+    return _hs.semantic_search.search_chunks(query, limit)
+
+
+def weighted_search(query: str, limit: int, alpha: float) -> list[dict]:
+    """Weighted hybrid: alpha * norm(bm25) + (1-alpha) * norm(semantic).
+
+    alpha=1.0 → pure BM25 | alpha=0.0 → pure semantic | alpha=0.5 → equal blend
+    Returns: list of { doc_id, title, description, bm25_score, sem_score, hybrid_score }
+    """
+    return _hs.weighted_search(query, alpha, limit)
+
+
+def rrf_search(query: str, limit: int, k: int) -> list[dict]:
+    """Reciprocal Rank Fusion: 1/(bm25_rank + k) + 1/(sem_rank + k).
+
+    Returns: list of { doc_id, title, description, bm25_rank, sem_rank, rrf_score }
+    """
+    return _hs.rrf_search(query, k, limit)
+
+
+# ─────────────────────────────────────────────────────────────
+# Utility functions
+# ─────────────────────────────────────────────────────────────
+
+def get_term_scores(doc_id: int, term: str) -> dict:
+    """TF, IDF, TF-IDF, BM25 breakdown for one term in one document.
+
+    Used by the Score Explorer panel in the Keyword Playground.
+    """
+    return {
+        "tf":      _hs.idx.get_tf(doc_id, term),
+        "idf":     _hs.idx.get_idf(term),
+        "tfidf":   _hs.idx.get_tfidf(doc_id, term),
+        "bm25_tf": _hs.idx.get_bm25_tf(doc_id, term),
+        "bm25_idf":_hs.idx.get_bm25_idf(term),
+        "bm25":    _hs.idx.bm25(doc_id, term),
+    }
+
+
+def chunk_text(text: str, chunk_size: int, mode: str) -> list[str]:
+    """Chunk a piece of text using fixed-size or semantic chunking.
+
+    Used by the Chunking Explorer in the Semantic Playground.
+    """
+    if mode == "fixed":
+        return _hs.semantic_search.fixed_size_chunking(text, chunk_size)
+    else:
+        return _hs.semantic_search.semantic_chunking(text)
+
+
+def enhance_query(query: str, enhance_type: str) -> str:
+    """Rewrite a query using the LLM (spell correction, rewrite, or expansion).
+
+    Why lazy import?
+    lib.llm raises RuntimeError at module load time if GEMINI_API_KEY is missing.
+    By importing inside this function body, the import only runs when this
+    function is actually called — not at server startup.
+    """
+    from lib.llm import correct_spelling, rewrite_query, expand_query
+
+    if enhance_type == "spell":
+        return correct_spelling(query)
+    elif enhance_type == "rewrite":
+        return rewrite_query(query)
+    elif enhance_type == "expand":
+        return expand_query(query)
+    return query
+
+
+def rag_answer(query: str, limit: int, mode: str) -> str:
+    """Full RAG pipeline: retrieve top docs via RRF, pass to LLM, return answer.
+
+    Lazy import for the same reason as enhance_query.
+    """
+    from lib.llm import answer_question, rag_summary, cited_summary, question_summary
+
+    # Step 1: retrieve the most relevant documents
+    docs = rrf_search(query, limit, k=60)
+
+    # Step 2: pass them to the LLM with the right prompt based on mode
+    if mode == "summary":
+        return rag_summary(query, docs)
+    elif mode == "citation":
+        return cited_summary(query, docs)
+    elif mode == "question":
+        return question_summary(query, docs)
+    else:  # default: "answer"
+        return answer_question(query, docs)
