@@ -30,7 +30,7 @@ def correct_spelling(query):
   return augment_prompt(query, 'spell')
 
 def rewrite_query(query):
-  return augment_prompt(query, 'rewrrite')
+  return augment_prompt(query, 'rewrite')
 
 def expand_query(query):
   return augment_prompt(query, 'expand')

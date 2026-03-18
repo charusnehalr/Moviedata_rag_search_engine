@@ -20,28 +20,24 @@ import asyncio
 from functools import partial
 from concurrent.futures import ThreadPoolExecutor
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter
 
 from backend.app.models.schemas import (
     SearchRequest,
     WeightedSearchRequest,
     RrfSearchRequest,
     RagRequest,
-    TermScoreRequest,
-    TermScoreResult,
-    ChunkRequest,
-    ChunkResult,
     SearchResponse,
-    CompareResponse,
     RagResponse,
 )
 from backend.app.services import engine
 from backend.app.services.response_builder import (
     build_keyword_response,
-    build_semantic_response,
+    build_bm25_response,
+    build_doc_semantic_response,
+    build_chunked_semantic_response,
     build_weighted_response,
     build_rrf_response,
-    build_compare_response,
 )
 
 # One shared thread pool for all blocking search calls
@@ -74,105 +70,124 @@ async def _run(fn, *args):
 
 @router.post("/keyword", response_model=SearchResponse)
 async def keyword_search_endpoint(req: SearchRequest):
-    """BM25 keyword search.
+    """Inverted index keyword search — Chapter 1.
 
-    Optional: pass enhance="spell"|"rewrite"|"expand" to rewrite the query first.
+    Tokenizes the query, finds all documents in the inverted index that contain
+    any query token (in title or description), returns first `limit` matches.
+    No scoring — results are in index order, not relevance order.
     """
-    query = req.query
-
-    # If query enhancement requested, rewrite query before searching
-    if req.enhance:
-        query = await _run(engine.enhance_query, query, req.enhance)
-
     start = time.monotonic()
-    raw = await _run(engine.keyword_search, query, req.limit)
+    raw = await _run(engine.keyword_search, req.query, req.limit)
     elapsed = int((time.monotonic() - start) * 1000)
+    return build_keyword_response(req.query, raw, elapsed)
 
-    return build_keyword_response(query, raw, elapsed)
+
+@router.post("/bm25", response_model=SearchResponse)
+async def bm25_search_endpoint(req: SearchRequest):
+    """BM25 keyword search — Chapter 2.
+
+    Same inverted index as keyword search, but every result now has a score.
+    Results are ranked best-match-first using the BM25 formula:
+      score = IDF(term) × (TF × (k1+1)) / (TF + k1 × (1 - b + b × doc_len/avg_len))
+
+    Higher score = stronger match based on term frequency, rarity, and document length.
+    """
+    start = time.monotonic()
+    raw = await _run(engine.bm25_search, req.query, req.limit)
+    elapsed = int((time.monotonic() - start) * 1000)
+    return build_bm25_response(req.query, raw, elapsed)
 
 
 @router.post("/semantic", response_model=SearchResponse)
-async def semantic_search_endpoint(req: SearchRequest):
-    """Chunked semantic search using sentence embeddings."""
-    query = req.query
+async def doc_semantic_search_endpoint(req: SearchRequest):
+    """Document-level semantic search — Chapter 3.
 
-    if req.enhance:
-        query = await _run(engine.enhance_query, query, req.enhance)
-
+    One embedding per full movie description. Ranks by cosine similarity to query.
+    No word matching — understands meaning. "astronaut left on Mars" matches
+    "man stranded on hostile planet" even with zero word overlap.
+    """
     start = time.monotonic()
-    raw = await _run(engine.semantic_search, query, req.limit)
+    raw = await _run(engine.doc_semantic_search, req.query, req.limit)
     elapsed = int((time.monotonic() - start) * 1000)
+    return build_doc_semantic_response(req.query, raw, elapsed)
 
-    return build_semantic_response(query, raw, elapsed)
+
+@router.post("/semantic/chunked", response_model=SearchResponse)
+async def chunked_semantic_search_endpoint(req: SearchRequest):
+    """Chunked semantic search — Chapter 4.
+
+    One embedding per sentence chunk. The best matching chunk per movie wins.
+    More granular than document-level — specific sentences score higher than
+    averaged whole-document embeddings.
+    """
+    start = time.monotonic()
+    raw = await _run(engine.chunked_semantic_search, req.query, req.limit)
+    elapsed = int((time.monotonic() - start) * 1000)
+    return build_chunked_semantic_response(req.query, raw, elapsed)
 
 
 @router.post("/hybrid/weighted", response_model=SearchResponse)
 async def weighted_search_endpoint(req: WeightedSearchRequest):
-    """Weighted hybrid search. alpha=0.5 blends BM25 and semantic equally."""
-    query = req.query
+    """Weighted hybrid search — Chapter 5.
 
-    if req.enhance:
-        query = await _run(engine.enhance_query, query, req.enhance)
+    Blends BM25 and semantic scores:
+      final_score = alpha * norm(bm25_score) + (1 - alpha) * norm(semantic_score)
 
+    alpha=1.0 → pure BM25
+    alpha=0.0 → pure semantic
+    alpha=0.5 → equal blend (default)
+
+    Both score lists are normalized to [0,1] before blending so they are
+    on the same scale. The result combines keyword precision with semantic meaning.
+    """
     start = time.monotonic()
-    raw = await _run(engine.weighted_search, query, req.limit, req.alpha)
+    raw = await _run(engine.weighted_search, req.query, req.limit, req.alpha)
     elapsed = int((time.monotonic() - start) * 1000)
-
-    return build_weighted_response(query, raw, elapsed)
+    return build_weighted_response(req.query, raw, elapsed)
 
 
 @router.post("/hybrid/rrf", response_model=SearchResponse)
 async def rrf_search_endpoint(req: RrfSearchRequest):
-    """RRF hybrid search. k=60 is the standard smoothing constant."""
-    query = req.query
+    """RRF hybrid search — Chapter 6.
 
+    Fuses BM25 and semantic rank positions using Reciprocal Rank Fusion:
+      rrf_score = 1/(bm25_rank + k) + 1/(sem_rank + k)
+
+    k=60 is the standard smoothing constant — prevents top ranks from
+    dominating too strongly. Higher k = smoother blending.
+
+    Unlike weighted search, RRF never looks at raw scores — only rank positions.
+    A movie ranked #1 by BM25 and #3 by semantic gets a very high RRF score
+    regardless of what the actual scores were.
+
+    Optional: pass enhance="spell"|"rewrite"|"expand" to rewrite query via LLM first.
+    """
+    query = req.query
     if req.enhance:
         query = await _run(engine.enhance_query, query, req.enhance)
 
     start = time.monotonic()
     raw = await _run(engine.rrf_search, query, req.limit, req.k)
     elapsed = int((time.monotonic() - start) * 1000)
-
     return build_rrf_response(query, raw, elapsed)
-
-
-@router.post("/compare", response_model=CompareResponse)
-async def compare_endpoint(req: SearchRequest):
-    """Run all 4 search methods in parallel and return combined results.
-
-    asyncio.gather runs all 4 searches simultaneously.
-    Total time = slowest method, not sum of all methods.
-    """
-    query = req.query
-
-    if req.enhance:
-        query = await _run(engine.enhance_query, query, req.enhance)
-
-    start = time.monotonic()
-
-    # All 4 searches start at the same time and run in separate threads
-    kw_raw, sem_raw, w_raw, rrf_raw = await asyncio.gather(
-        _run(engine.keyword_search,  query, req.limit),
-        _run(engine.semantic_search, query, req.limit),
-        _run(engine.weighted_search, query, req.limit, 0.5),
-        _run(engine.rrf_search,      query, req.limit, 60),
-    )
-
-    elapsed = int((time.monotonic() - start) * 1000)
-
-    # Build individual responses with their own timing
-    # (elapsed here is the wall-clock time for all 4 together)
-    kw_resp  = build_keyword_response(query, kw_raw,  elapsed)
-    sem_resp = build_semantic_response(query, sem_raw, elapsed)
-    w_resp   = build_weighted_response(query, w_raw,  elapsed)
-    rrf_resp = build_rrf_response(query, rrf_raw, elapsed)
-
-    return build_compare_response(query, req.limit, elapsed, kw_resp, sem_resp, w_resp, rrf_resp)
 
 
 @router.post("/rag", response_model=RagResponse)
 async def rag_endpoint(req: RagRequest):
-    """RAG: retrieve top docs, pass to LLM, return generated answer."""
+    """RAG — Chapter 7: Retrieve → Augment → Generate.
+
+    Step 1 (Retrieve):  RRF search finds top `limit` relevant movies
+    Step 2 (Augment):   retrieved descriptions become context for the LLM
+    Step 3 (Generate):  LLM reads the context and answers the query
+
+    Four modes:
+      answer   → direct answer to the query using retrieved context (default)
+      summary  → summarize the retrieved movies as a group
+      citation → answer with explicit citations to source movies
+      question → generate follow-up questions based on retrieved context
+
+    Requires GEMINI_API_KEY in environment.
+    """
     query = req.query
     enhanced_query = None
 
@@ -189,38 +204,6 @@ async def rag_endpoint(req: RagRequest):
         enhanced_query=enhanced_query,
         answer=answer,
         elapsed_ms=elapsed,
-    )
-
-
-# ─────────────────────────────────────────────────────────────
-# Utility endpoints
-# ─────────────────────────────────────────────────────────────
-
-@router.post("/scores/term", response_model=TermScoreResult)
-async def term_scores_endpoint(req: TermScoreRequest):
-    """Return TF, IDF, TF-IDF, BM25 breakdown for one term in one document.
-
-    Used by the Score Explorer panel in the Keyword Playground.
-    """
-    scores = await _run(engine.get_term_scores, req.doc_id, req.term)
-    return TermScoreResult(
-        term=req.term,
-        doc_id=req.doc_id,
-        **scores,   # unpacks tf, idf, tfidf, bm25_tf, bm25_idf, bm25
-    )
-
-
-@router.post("/chunk", response_model=ChunkResult)
-async def chunk_endpoint(req: ChunkRequest):
-    """Chunk a piece of text and return the chunks.
-
-    Used by the Chunking Explorer in the Semantic Playground.
-    """
-    chunks = await _run(engine.chunk_text, req.text, req.chunk_size, req.mode)
-    return ChunkResult(
-        chunks=chunks,
-        total_chunks=len(chunks),
-        mode=req.mode,
     )
 
 

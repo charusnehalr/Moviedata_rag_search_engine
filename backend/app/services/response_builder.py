@@ -28,25 +28,64 @@ def build_keyword_response(
     raw_results: list[dict],
     elapsed_ms: int,
 ) -> SearchResponse:
-    """Convert BM25 raw results into a SearchResponse.
+    """Convert inverted index keyword search results into a SearchResponse.
 
-    Raw dict shape from InvertedIndex.bm25_search():
-      { id, title, document, score, metadata }
+    Chapter 1: basic keyword search — inverted index, no scoring.
+
+    Raw dict shape from docmap (movies.json):
+      { id, title, description }
+
+    No score field — every matching document is treated equally.
     """
     results = []
     for rank, r in enumerate(raw_results, start=1):
         results.append(SearchResult(
             id=str(r["id"]),
             title=r["title"],
-            snippet=r["document"][:200],       # truncate description to 200 chars
+            snippet=r.get("description", "")[:200],
             rank=rank,
-            scores=ResultScores(bm25=r["score"]),   # only bm25 score applies here
-            ranks=ResultRanks(),                     # no rank info for single-method search
+            scores=ResultScores(),   # all null — no scoring in keyword search
+            ranks=ResultRanks(),
         ))
 
     return SearchResponse(
         query=query,
         method="keyword",
+        limit=len(results),
+        elapsed_ms=elapsed_ms,
+        results=results,
+    )
+
+
+def build_bm25_response(
+    query: str,
+    raw_results: list[dict],
+    elapsed_ms: int,
+) -> SearchResponse:
+    """Convert BM25 search results into a SearchResponse.
+
+    Chapter 2: BM25 — same inverted index, but now every result has a score.
+
+    Raw dict shape from InvertedIndex.bm25_search():
+      { id, title, document, score, metadata }
+
+    Note: the description field is called "document" here (not "description").
+    This is how cli/lib/keyword_search.py returns it via format_search_result().
+    """
+    results = []
+    for rank, r in enumerate(raw_results, start=1):
+        results.append(SearchResult(
+            id=str(r["id"]),
+            title=r["title"],
+            snippet=r["document"][:200],          # "document" key, not "description"
+            rank=rank,
+            scores=ResultScores(bm25=r["score"]), # BM25 score — now we have a real number
+            ranks=ResultRanks(),
+        ))
+
+    return SearchResponse(
+        query=query,
+        method="bm25",
         limit=len(results),
         elapsed_ms=elapsed_ms,
         results=results,
@@ -78,6 +117,74 @@ def build_semantic_response(
     return SearchResponse(
         query=query,
         method="semantic",
+        limit=len(results),
+        elapsed_ms=elapsed_ms,
+        results=results,
+    )
+
+
+def build_doc_semantic_response(
+    query: str,
+    raw_results: list[dict],
+    elapsed_ms: int,
+) -> SearchResponse:
+    """Convert document-level semantic search results into a SearchResponse.
+
+    Chapter 3: one embedding per full document.
+
+    Raw dict shape (built in engine.doc_semantic_search):
+      { id, title, document, score }
+
+    Score is cosine similarity — ranges from -1 to 1, higher = more similar.
+    """
+    results = []
+    for rank, r in enumerate(raw_results, start=1):
+        results.append(SearchResult(
+            id=str(r["id"]),
+            title=r["title"],
+            snippet=r["document"][:200],
+            rank=rank,
+            scores=ResultScores(semantic=r["score"]),  # cosine similarity score
+            ranks=ResultRanks(),
+        ))
+
+    return SearchResponse(
+        query=query,
+        method="semantic",
+        limit=len(results),
+        elapsed_ms=elapsed_ms,
+        results=results,
+    )
+
+
+def build_chunked_semantic_response(
+    query: str,
+    raw_results: list[dict],
+    elapsed_ms: int,
+) -> SearchResponse:
+    """Convert chunked semantic search results into a SearchResponse.
+
+    Chapter 4: one embedding per sentence chunk, best chunk wins per movie.
+
+    Raw dict shape from ChunkedSemanticSearch.search_chunks():
+      { id, title, document, score, metadata }
+
+    Score is cosine similarity of the best matching chunk, not the whole document.
+    """
+    results = []
+    for rank, r in enumerate(raw_results, start=1):
+        results.append(SearchResult(
+            id=str(r["id"]),
+            title=r["title"],
+            snippet=r["document"][:200],
+            rank=rank,
+            scores=ResultScores(semantic=r["score"]),  # best chunk's cosine similarity
+            ranks=ResultRanks(),
+        ))
+
+    return SearchResponse(
+        query=query,
+        method="chunked",
         limit=len(results),
         elapsed_ms=elapsed_ms,
         results=results,

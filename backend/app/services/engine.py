@@ -29,29 +29,48 @@ if str(_CLI_PATH) not in sys.path:
 # These imports now resolve because cli/ is on sys.path
 from lib.search_utils import load_movies
 from lib.hybrid_search import HybridSearch
+from lib.semantic_search import SemanticSearch
 
 
 # ─────────────────────────────────────────────────────────────
-# Module-level singleton
-# Starts as None. startup() fills it. Every search function below uses it.
+# Module-level singletons
+# _hs  → HybridSearch (BM25 index + ChunkedSemanticSearch for chunk-level)
+# _sem → SemanticSearch (separate instance for document-level embeddings)
+#
+# Why separate? ChunkedSemanticSearch.document_map uses integer position as key.
+# SemanticSearch.document_map uses doc_id as key.
+# If both live on the same object, the second load overwrites the first and
+# search_chunks returns wrong movies (same scores, different titles).
 # ─────────────────────────────────────────────────────────────
 _hs: HybridSearch | None = None
+_sem: SemanticSearch | None = None
 
 
 def startup() -> None:
     """Load all indexes into memory. Called ONCE when the server boots.
 
-    After this runs, _hs holds a fully loaded HybridSearch instance:
-      _hs.idx              → BM25 InvertedIndex (ready to search)
-      _hs.semantic_search  → ChunkedSemanticSearch (embeddings loaded)
+    After this runs:
+      _hs.idx              → BM25 InvertedIndex (ready for keyword + BM25 search)
+      _hs.semantic_search  → ChunkedSemanticSearch (chunk embeddings, document_map keyed by integer position)
+      _sem                 → SemanticSearch (document embeddings, document_map keyed by doc_id)
+
+    Why two separate semantic objects?
+      ChunkedSemanticSearch.document_map  uses integer position as key.
+      SemanticSearch.document_map         uses doc_id as key.
+      Loading both on the same object would let the second overwrite document_map,
+      causing search_chunks to return wrong movies (same scores, different titles).
     """
-    global _hs
+    global _hs, _sem
 
     print("[engine] Loading movies...")
     movies = load_movies()
 
-    print("[engine] Initializing HybridSearch (loads BM25 index + chunk embeddings)...")
+    print("[engine] Initializing HybridSearch (BM25 index + chunk embeddings)...")
     _hs = HybridSearch(movies)
+
+    print("[engine] Loading document-level embeddings (separate SemanticSearch instance)...")
+    _sem = SemanticSearch()
+    _sem.load_or_create_embeddings(movies)
 
     print("[engine] Ready.")
 
@@ -63,15 +82,94 @@ def startup() -> None:
 # ─────────────────────────────────────────────────────────────
 
 def keyword_search(query: str, limit: int) -> list[dict]:
-    """BM25 keyword search.
+    """Inverted index keyword search — Chapter 1 of the timeline.
+
+    This is the `search` command from keyword_search_cli.py.
+
+    How it works:
+      1. Tokenize the query (lowercase, remove stopwords, stem words)
+         e.g. "man stranded planet" → ["man", "strand", "planet"]
+      2. Look up each token in the inverted index to get matching doc IDs
+         e.g. "planet" → [doc42, doc107, doc891, ...]
+      3. Return the first `limit` unique movies found
+
+    Searches both title AND description — the index was built from both fields.
+    No scoring — every matching movie is treated equally.
+    Order is determined by which doc ID appears first in the index, not relevance.
+
+    Returns: list of raw movie dicts { id, title, description }
+    """
+    from lib.keyword_search import tokenize_text
+    query_tokens = tokenize_text(query)
+    seen = set()
+    results = []
+    for token in query_tokens:
+        # get_documents(token) returns all doc IDs that contain this token
+        for doc_id in _hs.idx.get_documents(token):
+            if doc_id in seen:
+                continue
+            seen.add(doc_id)
+            # docmap maps doc_id → raw movie dict { id, title, description }
+            results.append(_hs.idx.docmap[doc_id])
+            if len(results) >= limit:
+                return results
+    return results
+
+
+def bm25_search(query: str, limit: int) -> list[dict]:
+    """BM25 search — Chapter 2 (implemented later).
 
     Returns: list of { id, title, document, score, metadata }
     """
     return _hs.idx.bm25_search(query, limit)
 
 
-def semantic_search(query: str, limit: int) -> list[dict]:
-    """Chunked semantic search using sentence embeddings.
+def doc_semantic_search(query: str, limit: int) -> list[dict]:
+    """Document-level semantic search — Chapter 3.
+
+    This is the CLI `semantic search` command.
+
+    Each movie has ONE embedding representing its full title + description.
+    The query is embedded and compared against all 8000 movie embeddings.
+    The most similar movies (by cosine similarity) are returned.
+
+    Problem with this approach: one long description gets averaged into a single
+    vector. Specific details get diluted. A movie about "space survival" might
+    score lower than expected if its description also covers comedy, romance, etc.
+
+    NOTE: SemanticSearch.search() does not return an `id` field — only title and
+    description. We add the id back by looking up the title in the documents list.
+
+    Returns: list of { id, title, document, score }
+    """
+    raw = _sem.search(query, limit)
+
+    # search() returns {score, title, description} — no id.
+    # Build a title → id map from _sem.documents (the list passed at startup).
+    title_to_id = {m["title"]: str(m["id"]) for m in _sem.documents}
+
+    results = []
+    for r in raw:
+        results.append({
+            "id":       title_to_id.get(r["title"], "unknown"),
+            "title":    r["title"],
+            "document": r["description"],   # normalize key to "document"
+            "score":    r["score"],
+        })
+    return results
+
+
+def chunked_semantic_search(query: str, limit: int) -> list[dict]:
+    """Chunked semantic search — Chapter 4.
+
+    This is the CLI `semantic search_chunked` command.
+
+    Each movie description is split into sentence-sized chunks. Each chunk gets
+    its own embedding. The best matching chunk per movie determines the movie's score.
+
+    Why this is better than document-level: a specific sentence about "surviving on Mars"
+    scores highly for a space survival query even if the rest of the description is
+    about romance or comedy — the best chunk wins, not the average of all chunks.
 
     Returns: list of { id, title, document, score, metadata }
     """
@@ -83,8 +181,13 @@ def weighted_search(query: str, limit: int, alpha: float) -> list[dict]:
 
     alpha=1.0 → pure BM25 | alpha=0.0 → pure semantic | alpha=0.5 → equal blend
     Returns: list of { doc_id, title, description, bm25_score, sem_score, hybrid_score }
+
+    Why slice here?
+    combine_search_results() in hybrid_search.py never applies a limit — it returns
+    all merged results sorted by hybrid score. The limit param only controls the
+    candidate pool size (limit*500), not the output size. We slice ourselves.
     """
-    return _hs.weighted_search(query, alpha, limit)
+    return _hs.weighted_search(query, alpha, limit)[:limit]
 
 
 def rrf_search(query: str, limit: int, k: int) -> list[dict]:
