@@ -26,6 +26,7 @@ from backend.app.models.schemas import (
     SearchRequest,
     WeightedSearchRequest,
     RrfSearchRequest,
+    RerankRequest,
     RagRequest,
     SearchResponse,
     RagResponse,
@@ -38,6 +39,7 @@ from backend.app.services.response_builder import (
     build_chunked_semantic_response,
     build_weighted_response,
     build_rrf_response,
+    build_rerank_response,
 )
 
 # One shared thread pool for all blocking search calls
@@ -170,6 +172,39 @@ async def rrf_search_endpoint(req: RrfSearchRequest):
     raw = await _run(engine.rrf_search, query, req.limit, req.k)
     elapsed = int((time.monotonic() - start) * 1000)
     return build_rrf_response(query, raw, elapsed)
+
+
+@router.post("/rerank/batch", response_model=SearchResponse)
+async def batch_rerank_endpoint(req: RerankRequest):
+    """Batch semantic re-ranking — Chapter 7.
+
+    Stage 1: RRF retrieves `retrieval_limit` candidates (fast, imprecise)
+    Stage 2: Bi-encoder re-scores all candidates in one batch (precise)
+
+    The re-ranking score replaces the RRF score for final ordering.
+    Response includes both rrf_score (before) and rerank_score (after)
+    so you can see how positions changed.
+    """
+    start = time.monotonic()
+    raw = await _run(engine.batch_rerank, req.query, req.limit, req.retrieval_limit)
+    elapsed = int((time.monotonic() - start) * 1000)
+    return build_rerank_response(req.query, raw, elapsed, "batch_rerank")
+
+
+@router.post("/rerank/cross-encoder", response_model=SearchResponse)
+async def cross_encoder_rerank_endpoint(req: RerankRequest):
+    """Cross-encoder re-ranking — Chapter 8.
+
+    Stage 1: RRF retrieves `retrieval_limit` candidates (fast)
+    Stage 2: Cross-encoder scores each (query, document) pair together (most accurate)
+
+    Cross-encoder sees query and document as one input — captures interactions
+    that bi-encoders miss. Best possible ranking quality, highest latency.
+    """
+    start = time.monotonic()
+    raw = await _run(engine.cross_encoder_rerank, req.query, req.limit, req.retrieval_limit)
+    elapsed = int((time.monotonic() - start) * 1000)
+    return build_rerank_response(req.query, raw, elapsed, "cross_encoder_rerank")
 
 
 @router.post("/rag", response_model=RagResponse)

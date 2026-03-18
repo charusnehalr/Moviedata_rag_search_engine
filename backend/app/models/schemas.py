@@ -10,6 +10,7 @@ class ResultScores(BaseModel):
     semantic: float | None = None
     hybrid: float | None = None
     rrf: float | None = None
+    rerank: float | None = None   # re-ranking score (batch or cross-encoder)
 
 
 class ResultRanks(BaseModel):
@@ -81,6 +82,15 @@ class RagRequest(BaseModel):
     limit: int = 5
     mode: str = "answer"   # "answer" | "summary" | "citation" | "question"
     enhance: str | None = None
+
+
+class RerankRequest(BaseModel):
+    query: str
+    limit: int = 10                      # final results to return after re-ranking
+    retrieval_limit: int | None = None   # candidates to retrieve before re-ranking
+    # If retrieval_limit is None, it defaults to limit * 5 in the engine
+    # (matches the CLI behavior: rrf_limit = limit * 5 if rerank_method else limit)
+    # Typical ratio: retrieve 50, return 10 — the re-ranker filters the noise
 
 
 # ─────────────────────────────────────────────

@@ -260,6 +260,46 @@ def build_rrf_response(
     )
 
 
+def build_rerank_response(
+    query: str,
+    raw_results: list[dict],
+    elapsed_ms: int,
+    method: str,   # "batch_rerank" or "cross_encoder_rerank"
+) -> SearchResponse:
+    """Convert re-ranked results into a SearchResponse.
+
+    Raw results come from rrf_search (so they have rrf_score, bm25_rank, sem_rank)
+    with an added rerank_score field from the re-ranking stage.
+
+    We store both: rrf_score (where it ranked before) and rerank_score (final score).
+    This lets the frontend show how re-ranking changed the order.
+    """
+    results = []
+    for rank, r in enumerate(raw_results, start=1):
+        results.append(SearchResult(
+            id=str(r["doc_id"]),
+            title=r["title"],
+            snippet=r.get("description", "")[:200],
+            rank=rank,
+            scores=ResultScores(
+                rrf=r.get("rrf_score"),          # original RRF score before re-ranking
+                rerank=r.get("rerank_score"),    # new score after re-ranking
+            ),
+            ranks=ResultRanks(
+                bm25_rank=r.get("bm25_rank"),
+                sem_rank=r.get("sem_rank"),
+            ),
+        ))
+
+    return SearchResponse(
+        query=query,
+        method=method,
+        limit=len(results),
+        elapsed_ms=elapsed_ms,
+        results=results,
+    )
+
+
 def build_compare_response(
     query: str,
     limit: int,

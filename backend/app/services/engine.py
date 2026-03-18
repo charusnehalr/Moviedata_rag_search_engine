@@ -34,13 +34,9 @@ from lib.semantic_search import SemanticSearch
 
 # ─────────────────────────────────────────────────────────────
 # Module-level singletons
-# _hs  → HybridSearch (BM25 index + ChunkedSemanticSearch for chunk-level)
-# _sem → SemanticSearch (separate instance for document-level embeddings)
-#
-# Why separate? ChunkedSemanticSearch.document_map uses integer position as key.
-# SemanticSearch.document_map uses doc_id as key.
-# If both live on the same object, the second load overwrites the first and
-# search_chunks returns wrong movies (same scores, different titles).
+# _hs           → HybridSearch (BM25 index + ChunkedSemanticSearch)
+# _sem          → SemanticSearch (document-level embeddings, separate instance)
+# _cross_encoder → CrossEncoder model for precise re-ranking
 # ─────────────────────────────────────────────────────────────
 _hs: HybridSearch | None = None
 _sem: SemanticSearch | None = None
@@ -196,6 +192,58 @@ def rrf_search(query: str, limit: int, k: int) -> list[dict]:
     Returns: list of { doc_id, title, description, bm25_rank, sem_rank, rrf_score }
     """
     return _hs.rrf_search(query, k, limit)
+
+
+def batch_rerank(query: str, limit: int, retrieval_limit: int | None = None) -> list[dict]:
+    """LLM batch re-ranking — delegates directly to cli/lib/rerank.py:batch_rerank().
+
+    Stage 1: RRF retrieves candidates
+    Stage 2: ONE Gemini LLM call ranks all candidates using the batch_rerank.md prompt
+
+    Lazy import: lib.rerank raises RuntimeError at module load if GEMINI_API_KEY missing.
+    """
+    from lib.rerank import batch_rerank as cli_batch_rerank
+
+    pool = retrieval_limit if retrieval_limit is not None else limit * 5
+    candidates = rrf_search(query, pool, k=60)
+    if not candidates:
+        return []
+
+    # Delegates entirely to the CLI function — uses batch_rerank.md prompt + Gemini
+    reranked = cli_batch_rerank(query, candidates)
+
+    # CLI returns rerank_score as position index (0=best, lower is better)
+    # Normalize to [0,1] with 1=best so the frontend can treat higher=better consistently
+    n = len(reranked)
+    for i, r in enumerate(reranked):
+        r["rerank_score"] = round((n - 1 - i) / max(n - 1, 1), 4)
+
+    return reranked[:limit]
+
+
+def cross_encoder_rerank(query: str, limit: int, retrieval_limit: int | None = None) -> list[dict]:
+    """Cross-encoder re-ranking — delegates directly to cli/lib/rerank.py:cross_encoder_rerank().
+
+    Stage 1: RRF retrieves candidates
+    Stage 2: ms-marco-TinyBERT-L2-v2 scores each (query, title+document) pair
+
+    No LLM — pure ML model, deterministic, no API key needed.
+    """
+    from lib.rerank import cross_encoder_rerank as cli_cross_encoder_rerank
+
+    pool = retrieval_limit if retrieval_limit is not None else limit * 5
+    candidates = rrf_search(query, pool, k=60)
+    if not candidates:
+        return []
+
+    # Delegates entirely to the CLI function — uses TinyBERT cross-encoder
+    reranked = cli_cross_encoder_rerank(query, candidates)
+
+    # CLI stores the score as cross_encoder_score — normalize key to rerank_score
+    for r in reranked:
+        r["rerank_score"] = float(r.get("cross_encoder_score", 0))
+
+    return reranked[:limit]
 
 
 # ─────────────────────────────────────────────────────────────
