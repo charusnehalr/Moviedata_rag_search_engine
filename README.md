@@ -21,6 +21,31 @@ The frontend is a scrollable timeline of 8 chapters. Each chapter runs a differe
 
 ---
 
+## Screenshots
+
+**Hero / Landing**
+![Hero](docs/screenshots/hero.png)
+
+**Timeline Overview**
+![Timeline](docs/screenshots/timeline.png)
+
+**BM25 Search**
+![BM25](docs/screenshots/bm25.png)
+
+**Document Semantic vs BM25 Side-by-side**
+![Doc Semantic](docs/screenshots/doc-semantic.png)
+
+**RRF Hybrid Search**
+![RRF](docs/screenshots/rrf.png)
+
+**Neural Reranking**
+![Reranking](docs/screenshots/reranking.png)
+
+**RAG Answer**
+![RAG](docs/screenshots/rag.png)
+
+---
+
 ## Tech stack
 
 **Backend**
