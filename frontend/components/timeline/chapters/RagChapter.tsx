@@ -8,7 +8,7 @@ import SearchBox from '@/components/shared/SearchBox'
 import ResultCard from '@/components/shared/ResultCard'
 import LoadingDots from '@/components/shared/LoadingDots'
 
-const DEFAULT_QUERY = 'a lonely robot searching for love and belonging'
+const DEFAULT_QUERY = 'a bear on a funny wild adventure'
 
 type RagMode = 'answer' | 'summary' | 'citation' | 'question'
 
@@ -29,7 +29,7 @@ export default function RagChapter() {
   const [searched, setSearched] = useState(false)
 
   const { results, loading: rrfLoading, error: rrfError, search: rrfSearch } = useSearch('rrf', {
-    limit: 3,
+    limit: 5,
   })
 
   const handleSearch = useCallback(
@@ -45,7 +45,7 @@ export default function RagChapter() {
 
       setAnswerLoading(true)
       try {
-        const ragResult = await api.ragSearch({ query: q, limit: 3, mode })
+        const ragResult = await api.ragSearch({ query: q, limit: 5, mode })
         setAnswer(ragResult.answer)
         setEnhancedQuery(ragResult.enhanced_query)
         setRagElapsed(ragResult.elapsed_ms)

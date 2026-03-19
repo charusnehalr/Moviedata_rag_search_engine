@@ -96,6 +96,8 @@ class HybridSearch:
         if not os.path.exists(self.idx.index_path):
             self.idx.build()
             self.idx.save()
+        else:
+            self.idx.load()
 
     def _bm25_search(self, query, limit):
         self.idx.load()
@@ -177,7 +179,7 @@ def rrf_combine_search_results(bm25_results, sem_results, k):
       
 def combine_search_results(bm25_results, sem_result, alpha):
   bm25_norm = normalize_search_results(bm25_results)
-  sem_norm = normalize_search_results(sem_results)
+  sem_norm = normalize_search_results(sem_result)
 
   combined_norm = {}
   for norm in bm25_norm:

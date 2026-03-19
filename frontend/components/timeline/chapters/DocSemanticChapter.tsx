@@ -6,11 +6,11 @@ import ChapterCard from '@/components/timeline/ChapterCard'
 import SearchBox from '@/components/shared/SearchBox'
 import ResultCard from '@/components/shared/ResultCard'
 
-const DEFAULT_QUERY = 'a lonely robot searching for love and belonging'
+const DEFAULT_QUERY = 'a bear on a funny wild adventure'
 
 export default function DocSemanticChapter() {
-  const bm25 = useSearch('bm25', { limit: 3 })
-  const semantic = useSearch('docSemantic', { limit: 3 })
+  const bm25 = useSearch('bm25', { limit: 5 })
+  const semantic = useSearch('docSemantic', { limit: 5 })
   const [searched, setSearched] = useState(false)
 
   const handleSearch = useCallback(

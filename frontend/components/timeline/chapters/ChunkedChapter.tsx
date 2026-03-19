@@ -5,7 +5,7 @@ import ChapterCard from '@/components/timeline/ChapterCard'
 import SearchBox from '@/components/shared/SearchBox'
 import ResultCard from '@/components/shared/ResultCard'
 
-const DEFAULT_QUERY = 'a lonely robot searching for love and belonging'
+const DEFAULT_QUERY = 'a bear on a funny wild adventure'
 
 export default function ChunkedChapter() {
   const { results, loading, error, elapsed, search } = useSearch('chunked', { limit: 5 })
