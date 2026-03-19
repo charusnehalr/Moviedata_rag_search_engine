@@ -118,7 +118,7 @@ class HybridSearch:
 
         combined_results = rrf_combine_search_results(bm25_results, sem_results, k)
         logger.debug(f"  [RRF Combined] {len(combined_results)} docs fused, returning top {limit}")
-        return combined_results[:10]
+        return combined_results[:limit]
 
 def hybrid_score(bm25_score, sem_score, alpha=0.5):
   return (alpha * bm25_score + (1 - alpha) * sem_score)
