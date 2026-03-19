@@ -29,7 +29,7 @@ export default function DocSemanticChapter() {
     <ChapterCard
       id="docSem"
       num={3}
-      icon="🧠"
+      
       title="Document Semantic Search"
       problem="BM25 needs exact word matches. Query 'lonely robot' returns nothing if the movie says 'isolated machine'."
       solution="Embeddings map meaning to vectors. Cosine similarity finds movies that mean the same thing, even with zero word overlap."
@@ -58,7 +58,7 @@ export default function DocSemanticChapter() {
             {/* BM25 column */}
             <div>
               <h3 className="text-xs font-extrabold text-gray-500 uppercase tracking-wide mb-2">
-                📊 BM25 (word matching)
+                BM25 (word matching)
               </h3>
               <div className="space-y-2">
                 {bm25.results.length > 0 ? (
@@ -74,7 +74,7 @@ export default function DocSemanticChapter() {
             {/* Semantic column */}
             <div>
               <h3 className="text-xs font-extrabold text-gray-500 uppercase tracking-wide mb-2">
-                🧠 Doc Semantic (meaning matching)
+                Doc Semantic (meaning matching)
               </h3>
               <div className="space-y-2">
                 {semantic.results.length > 0 ? (

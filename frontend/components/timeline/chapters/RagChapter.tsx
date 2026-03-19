@@ -64,7 +64,7 @@ export default function RagChapter() {
     <ChapterCard
       id="rag"
       num={8}
-      icon="✨"
+      
       title="Retrieval-Augmented Generation (RAG)"
       problem="Even perfect ranking gives you a list. Users want an answer, not 10 blue links."
       solution="Retrieve top docs via RRF, inject as context, ask LLM to generate a direct answer. Retrieval-Augmented Generation."

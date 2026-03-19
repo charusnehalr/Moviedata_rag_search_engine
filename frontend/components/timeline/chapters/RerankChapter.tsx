@@ -39,7 +39,7 @@ export default function RerankChapter() {
     <ChapterCard
       id="rerank"
       num={7}
-      icon="🔄"
+      
       title="Neural Reranking"
       problem="Fast retrieval (RRF) gets ~50 candidates quickly but imprecisely. The top result might not be the best match."
       solution="Two-stage: retrieve broadly with RRF, then re-score with a heavy model. Stage 2 reorders based on deep (query, document) understanding."
@@ -72,8 +72,8 @@ export default function RerankChapter() {
 
       <p className="text-xs text-gray-500 mb-4">
         {mode === 'crossEncoder'
-          ? '🤖 Scores each (query, doc) pair together. Most accurate. ~2-3s.'
-          : '✨ One LLM call ranks all candidates. Understands nuance. ~3-5s.'}
+          ? 'Scores each (query, doc) pair together. Most accurate. ~2-3s.'
+          : 'One LLM call ranks all candidates. Understands nuance. ~3-5s.'}
       </p>
 
       <SearchBox

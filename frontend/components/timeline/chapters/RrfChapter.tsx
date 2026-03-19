@@ -57,7 +57,7 @@ export default function RrfChapter() {
         </select>
         {enhance && (
           <span className="text-xs text-gray-500 italic">
-            ✨ Query will be rewritten by LLM before searching
+            Query will be rewritten by LLM before searching
           </span>
         )}
       </div>

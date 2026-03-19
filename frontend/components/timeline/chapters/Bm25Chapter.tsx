@@ -14,7 +14,7 @@ export default function Bm25Chapter() {
     <ChapterCard
       id="bm25"
       num={2}
-      icon="📊"
+      
       title="BM25 Scoring"
       problem="Keyword search treats all matches equally. 'robot' in a 3-word title = 'robot' in a 500-word epic. Unfair."
       solution="BM25 scores by term rarity (IDF) × frequency (TF), normalized for document length. Short precise matches win."
