@@ -58,10 +58,9 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],  # Next.js dev server
-    allow_credentials=True,
-    allow_methods=["*"],    # allow GET, POST, OPTIONS, etc.
-    allow_headers=["*"],    # allow Content-Type, Authorization, etc.
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 
