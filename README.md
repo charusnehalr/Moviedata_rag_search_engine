@@ -1,4 +1,4 @@
-# RAG Observatory
+# SearchLens - RAG Observatory
 
 A full-stack search engine that walks through 8 search strategies — from basic keyword matching to Retrieval-Augmented Generation — side by side, on the same dataset. Built as an educational tool to understand how modern search works under the hood.
 
@@ -20,29 +20,40 @@ The frontend is a scrollable timeline of 8 chapters. Each chapter runs a differe
 | 8 | RAG | Retrieve → Augment → Generate: LLM answers using retrieved movie context |
 
 ---
+## Demo
+[https://drive.google.com/drive/u/0/folders/1-lYnobG4L3laGkSnqEq6lcN6xTJR032b](https://drive.google.com/file/d/1vhgklSYJHPXYCaEWyNBdJmd87ZTwUpdU/view?usp=drive_link)
 
 ## Screenshots
 
 **Hero / Landing**
-![Hero](docs/screenshots/hero.png)
+<img width="1848" height="951" alt="image" src="https://github.com/user-attachments/assets/e61ba7de-473c-4fa7-834d-e6971c409bd6" />
 
 **Timeline Overview**
-![Timeline](docs/screenshots/timeline.png)
+<img width="1490" height="467" alt="image" src="https://github.com/user-attachments/assets/a14cb0ee-f9f5-478b-ac39-ed57fb3eafaf" />
+
+**Legacy Search**
+<img width="1850" height="949" alt="image" src="https://github.com/user-attachments/assets/97890bc0-611e-4611-86fa-69e3f01c0ce1" />
 
 **BM25 Search**
-![BM25](docs/screenshots/bm25.png)
+<img width="1852" height="946" alt="image" src="https://github.com/user-attachments/assets/20edac4f-8ed9-40a9-af0d-30b56b1ccd66" />
 
 **Document Semantic vs BM25 Side-by-side**
-![Doc Semantic](docs/screenshots/doc-semantic.png)
+<img width="1851" height="944" alt="image" src="https://github.com/user-attachments/assets/24145347-4d4e-41ef-ae24-96ffa00a83c0" />
 
-**RRF Hybrid Search**
-![RRF](docs/screenshots/rrf.png)
+**Chunked Semantic Search**
+<img width="1855" height="945" alt="image" src="https://github.com/user-attachments/assets/5e3ae32e-229f-4014-a96f-ec0a544c7e1d" />
+
+**Weighted Hybrid Search**
+<img width="1856" height="948" alt="image" src="https://github.com/user-attachments/assets/01c2e3d2-232d-4b8e-9fc3-701c9b4bd0ec" />
+
+**RRF - Reciprocal Rank Fusion**
+<img width="1851" height="952" alt="image" src="https://github.com/user-attachments/assets/09233bf5-c2f3-4f2c-b241-bd5e8cadf556" />
 
 **Neural Reranking**
-![Reranking](docs/screenshots/reranking.png)
+<img width="1854" height="948" alt="image" src="https://github.com/user-attachments/assets/d46b3838-9f7f-4661-a095-4564ef1ff55c" />
 
 **RAG Answer**
-![RAG](docs/screenshots/rag.png)
+<img width="1858" height="951" alt="image" src="https://github.com/user-attachments/assets/99553754-2287-4015-ae4a-a67472b4a47d" />
 
 ---
 
