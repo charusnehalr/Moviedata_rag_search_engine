@@ -101,7 +101,7 @@ export default function RerankChapter() {
       {results.length > 0 && (
         <>
           <div className="mt-4 p-3 rounded-xl bg-gray-100 border-2 border-black text-gray-800 text-xs font-medium">
-            Both methods first retrieve 25 candidates via RRF, then re-rank them. The final top 5 shown here.
+            Both methods first retrieve 10 candidates via RRF, then re-rank them. The final top 5 shown here.
           </div>
           <div className="mt-3 space-y-2">
             {results.map((r) => (
