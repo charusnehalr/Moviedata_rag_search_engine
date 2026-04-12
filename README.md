@@ -231,4 +231,4 @@ On first run the backend builds and saves index files to `cache/`:
 | `cache/chunk_embeddings.npy` | Sentence chunk embeddings |
 | `cache/doc_embeddings.npy` | Whole-document embeddings |
 
-Delete `cache/` to force a full rebuild.
+Delete `cache/` to force full rebuild.
